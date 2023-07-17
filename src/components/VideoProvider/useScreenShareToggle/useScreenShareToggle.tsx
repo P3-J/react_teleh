@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { LogLevels, Track, Room } from 'twilio-video';
 import { ErrorCallback } from '../../../types';
+import useLocalTracks from '../useLocalTracks/useLocalTracks';
 
 interface MediaStreamTrackPublishOptions {
   name?: string;
@@ -12,36 +13,41 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
   const [isSharing, setIsSharing] = useState(false);
   const stopScreenShareRef = useRef<() => void>(null!);
 
+  //const ds = navigator.mediaDevices.getDisplayMedia({audio: true, video: true})
+  //console.log(ds)
+
   const shareScreen = useCallback(() => {
     navigator.mediaDevices
       .getDisplayMedia({
-        audio: false,
+        audio: true,
         video: true,
       })
       .then(stream => {
-        const track = stream.getTracks()[0];
+        //const track = stream.getTracks()[0];
+        const tracks = stream.getTracks();
 
-        // All video tracks are published with 'low' priority. This works because the video
-        // track that is displayed in the 'MainParticipant' component will have it's priority
-        // set to 'high' via track.setPriority()
-        room!.localParticipant
-          .publishTrack(track, {
-            name: 'screen', // Tracks can be named to easily find them later
-            priority: 'low', // Priority is set to high by the subscriber when the video track is rendered
-          } as MediaStreamTrackPublishOptions)
-          .then(trackPublication => {
-            stopScreenShareRef.current = () => {
-              room!.localParticipant.unpublishTrack(track);
-              // TODO: remove this if the SDK is updated to emit this event
-              room!.localParticipant.emit('trackUnpublished', trackPublication);
-              track.stop();
-              setIsSharing(false);
-            };
+        tracks.forEach(track => {
+          var streamName = track.kind;
 
-            track.onended = stopScreenShareRef.current;
-            setIsSharing(true);
-          })
-          .catch(onError);
+          room!.localParticipant
+            .publishTrack(track, {
+              name: streamName, // Tracks can be named to easily find them later
+              priority: 'low', // Priority is set to high by the subscriber when the video track is rendered
+            } as MediaStreamTrackPublishOptions)
+            .then(trackPublication => {
+              stopScreenShareRef.current = () => {
+                room!.localParticipant.unpublishTrack(track);
+                // TODO: remove this if the SDK is updated to emit this event
+                room!.localParticipant.emit('trackUnpublished', trackPublication);
+                track.stop();
+                setIsSharing(false);
+              };
+
+              track.onended = stopScreenShareRef.current;
+              setIsSharing(true);
+            })
+            .catch(onError);
+        });
       })
       .catch(error => {
         // Don't display an error if the user closes the screen share dialog
