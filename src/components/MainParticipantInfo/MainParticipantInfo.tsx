@@ -122,7 +122,8 @@ export default function MainParticipantInfo({ participant, children }: MainParti
   const isLocal = localParticipant === participant;
 
   const screenShareParticipant = useScreenShareParticipant();
-  const isRemoteParticipantScreenSharing = screenShareParticipant && screenShareParticipant !== localParticipant;
+  //required change
+  //const isRemoteParticipantScreenSharing = screenShareParticipant && screenShareParticipant !== localParticipant;
 
   const publications = usePublications(participant);
   const videoPublication = publications.find(p => !p.trackName.includes('screen') && p.kind === 'video');
@@ -144,7 +145,7 @@ export default function MainParticipantInfo({ participant, children }: MainParti
       data-cy-main-participant
       data-cy-participant={participant.identity}
       className={clsx(classes.container, {
-        [classes.fullWidth]: !isRemoteParticipantScreenSharing,
+        [classes.fullWidth]: !screenShareParticipant,
       })}
     >
       <div className={classes.infoContainer}>
