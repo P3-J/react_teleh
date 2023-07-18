@@ -19,35 +19,39 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
   const shareScreen = useCallback(() => {
     navigator.mediaDevices
       .getDisplayMedia({
-        audio: true,
+        audio: false,
         video: true,
       })
       .then(stream => {
-        //const track = stream.getTracks()[0];
+        const track = stream.getTracks()[0];
+
         const tracks = stream.getTracks();
 
-        tracks.forEach(track => {
-          var streamName = track.kind;
+        //tracks.forEach(track => {
+        // only publish if track kind is video
+        //if (track.kind === 'video') {
+        var streamName = track.kind;
 
-          room!.localParticipant
-            .publishTrack(track, {
-              name: streamName, // Tracks can be named to easily find them later
-              priority: 'low', // Priority is set to high by the subscriber when the video track is rendered
-            } as MediaStreamTrackPublishOptions)
-            .then(trackPublication => {
-              stopScreenShareRef.current = () => {
-                room!.localParticipant.unpublishTrack(track);
-                // TODO: remove this if the SDK is updated to emit this event
-                room!.localParticipant.emit('trackUnpublished', trackPublication);
-                track.stop();
-                setIsSharing(false);
-              };
+        room!.localParticipant
+          .publishTrack(track, {
+            name: 'video', // Tracks can be named to easily find them later
+            priority: 'low', // Priority is set to high by the subscriber when the video track is rendered
+          } as MediaStreamTrackPublishOptions)
+          .then(trackPublication => {
+            stopScreenShareRef.current = () => {
+              room!.localParticipant.unpublishTrack(track);
+              // TODO: remove this if the SDK is updated to emit this event
+              room!.localParticipant.emit('trackUnpublished', trackPublication);
+              track.stop();
+              setIsSharing(false);
+            };
 
-              track.onended = stopScreenShareRef.current;
-              setIsSharing(true);
-            })
-            .catch(onError);
-        });
+            track.onended = stopScreenShareRef.current;
+            setIsSharing(true);
+          })
+          .catch(onError);
+        //}
+        //});
       })
       .catch(error => {
         // Don't display an error if the user closes the screen share dialog
