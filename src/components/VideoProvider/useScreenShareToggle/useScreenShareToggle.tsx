@@ -21,8 +21,8 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
   const [isSharing, setIsSharing] = useState(false);
   const stopScreenShareRef = useRef<() => void>(null!);
 
-  //const ds = navigator.mediaDevices.getDisplayMedia({audio: true, video: true})
-  //console.log(ds)
+  // todo : Self screenshare duplicates during some cases, and audio duplicates with it. But it only appears so on the screensharer's side. The other participants see it fine.
+  // Audio duplication seems to fix itself when sharing again.
 
   const shareScreen = useCallback(() => {
     navigator.mediaDevices
@@ -31,9 +31,6 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
         video: true,
       })
       .then(stream => {
-        //remove local microphone track
-        //room!.localParticipant.unpublishTrack(room!.localParticipant.getaudioTracks[0].track);
-
         var hasMic = false;
         var mictrack: any;
         var screenShareTrackBool = false;
@@ -84,14 +81,19 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
             } as MediaStreamTrackPublishOptions)
             .then(trackPublication => {
               stopScreenShareRef.current = () => {
-                tracks.forEach(asi => {
-                  room!.localParticipant.unpublishTrack(track);
+                tracks.forEach(ctrack => {
+                  room!.localParticipant.unpublishTrack(ctrack);
                   room!.localParticipant.emit('trackUnpublished', trackPublication);
-                  track.stop();
+                  ctrack.stop();
                   setIsSharing(false);
+                  // get user microphone if room has no audio track
+                  if (room!.localParticipant.audioTracks.size === 0) {
+                    // the promise might be breakin the room size check logging so it could be checked while testing (should be 1 always)
+                    console.log(room!.localParticipant.audioTracks.size);
+                    getUserMicrophone(room!);
+                  }
                 });
               };
-
               track.onended = stopScreenShareRef.current;
               setIsSharing(true);
             })
@@ -143,17 +145,23 @@ function mixAudioTracksTogether(stream1: MediaStreamTrack, stream2: MediaStreamT
   return FinalStream;
 }
 
-function getUserMicrophone() {
-  // get avaliable input device with id = "default" and return input device mediastreamtrack
+function getUserMicrophone(room: Room) {
+  // get avaliable input device with id = "default" and kind = "audioinput" and add it to the stream and add it to the room
+  var userMic: any;
   navigator.mediaDevices.enumerateDevices().then(devices => {
-    var mic = devices.filter(device => device.kind === 'audioinput' && device.deviceId === 'default');
-    if (mic.length > 0) {
-      navigator.mediaDevices.getUserMedia({ audio: { deviceId: mic[0].deviceId } }).then(stream => {
-        var a = stream.getAudioTracks()[0];
-        debugger;
-        return stream.getAudioTracks()[0];
-      });
-    }
+    devices.forEach(device => {
+      if (device.kind === 'audioinput' && device.deviceId === 'default') {
+        navigator.mediaDevices
+          .getUserMedia({
+            audio: {
+              deviceId: device.deviceId,
+            },
+          })
+          .then(stream => {
+            userMic = stream.getAudioTracks()[0];
+            room!.localParticipant.publishTrack(userMic);
+          });
+      }
+    });
   });
-  return null;
 }
