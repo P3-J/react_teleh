@@ -1,5 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
-import { LogLevels, Track, Room, LocalAudioTrack, LocalVideoTrack, TrackPublication } from 'twilio-video';
+import {
+  LogLevels,
+  Track,
+  Room,
+  LocalAudioTrack,
+  LocalVideoTrack,
+  TrackPublication,
+  LocalParticipant,
+  LocalTrackPublication,
+} from 'twilio-video';
 import { ErrorCallback } from '../../../types';
 import useLocalTracks from '../useLocalTracks/useLocalTracks';
 import {
@@ -52,6 +61,7 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
             hasMic = true;
             if (screenShareAudioTrack) {
               room!.localParticipant.unpublishTrack(element.track);
+              //element.
             }
           }
         });
@@ -80,19 +90,30 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
               priority: 'low', // Priority is set to high by the subscriber when the video track is rendered
             } as MediaStreamTrackPublishOptions)
             .then(trackPublication => {
+              // if the user stops sharing unpublish all audio tracks and publish the mic track again
+              //stream = oldStreamWithMic;
+
               stopScreenShareRef.current = () => {
-                tracks.forEach(ctrack => {
-                  room!.localParticipant.unpublishTrack(ctrack);
-                  room!.localParticipant.emit('trackUnpublished', trackPublication);
-                  ctrack.stop();
-                  setIsSharing(false);
-                  // get user microphone if room has no audio track
-                  if (room!.localParticipant.audioTracks.size === 0) {
-                    // the promise might be breakin the room size check logging so it could be checked while testing (should be 1 always)
-                    console.log(room!.localParticipant.audioTracks.size);
-                    getUserMicrophone(room!);
+                room!.localParticipant.audioTracks.forEach(publication => {
+                  room!.localParticipant.unpublishTrack(publication.track);
+                  publication.track.stop();
+                  room!.localParticipant.emit('trackUnpublished', publication);
+                });
+                //remove kind = screen from tracks
+                //room!.localParticipant.tracks.forEach(publication => {
+                room!.localParticipant.videoTracks.forEach(publication => {
+                  if (publication.track.name === 'screen') {
+                    room!.localParticipant.unpublishTrack(publication.track);
+                    publication.track.stop();
+                    room!.localParticipant.emit('trackUnpublished', publication);
                   }
                 });
+                room!.localParticipant.publishTrack(mictrack);
+
+                //room!.localParticipant.unpublishTrack(track);
+                //room!.localParticipant.emit('trackUnpublished', trackPublication);
+                //track.stop();
+                setIsSharing(false);
               };
               track.onended = stopScreenShareRef.current;
               setIsSharing(true);
@@ -147,10 +168,14 @@ function mixAudioTracksTogether(stream1: MediaStreamTrack, stream2: MediaStreamT
 
 function getUserMicrophone(room: Room) {
   // get avaliable input device with id = "default" and kind = "audioinput" and add it to the stream and add it to the room
+  // for loop though only once so we dont add multiple audio tracks
+
   var userMic: any;
+
   navigator.mediaDevices.enumerateDevices().then(devices => {
     devices.forEach(device => {
       if (device.kind === 'audioinput' && device.deviceId === 'default') {
+        debugger;
         navigator.mediaDevices
           .getUserMedia({
             audio: {
