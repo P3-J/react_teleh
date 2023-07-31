@@ -44,12 +44,11 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
         var mictrack: any;
         var screenShareTrackBool = false;
         var screenShareAudioTrack: any;
-        var avaliableTracks = stream.getTracks();
 
         // Check if screen share has audio track selected
         if (stream.getAudioTracks().length > 0) {
           screenShareAudioTrack = stream.getAudioTracks()[0];
-          console.log(screenShareAudioTrack);
+          //console.log(screenShareAudioTrack);
           screenShareTrackBool = true;
         }
 
@@ -59,13 +58,15 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
           if (element.kind === 'audio') {
             mictrack = element.track;
             hasMic = true;
-            if (screenShareAudioTrack) {
+            if (screenShareTrackBool) {
               room!.localParticipant.unpublishTrack(element.track);
-              //element.
             }
           }
         });
 
+        var avaliableTracks = stream.getTracks();
+        console.log('siin - ' + avaliableTracks);
+        console.log(room!.localParticipant.tracks);
         // If we have a mic/screen track then mix them together and replace stream
         if (hasMic && screenShareTrackBool) {
           var finalStream: any;
@@ -82,6 +83,7 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
         var tracks = stream.getTracks();
 
         tracks.forEach(track => {
+          console.log(tracks, room!.localParticipant.tracks);
           var trackName = track.kind === 'video' ? 'screen' : 'screen_audio';
 
           room!.localParticipant
@@ -92,34 +94,41 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
             .then(trackPublication => {
               // if the user stops sharing unpublish all audio tracks and publish the mic track again
               //stream = oldStreamWithMic;
+              // bad fix but it works, idk why
+              stopScreenShareRef.current = () => {
+                room!.localParticipant.unpublishTrack(trackPublication.track);
+              };
 
               stopScreenShareRef.current = () => {
+                //console.log("-----" + isSharing)
+
                 room!.localParticipant.audioTracks.forEach(publication => {
-                  room!.localParticipant.unpublishTrack(publication.track);
-                  publication.track.stop();
-                  room!.localParticipant.emit('trackUnpublished', publication);
+                  if (screenShareAudioTrack) {
+                    room!.localParticipant.unpublishTrack(publication.track);
+                    room!.localParticipant.emit('trackUnpublished', publication);
+                    publication.track.stop();
+                  }
                 });
-                //remove kind = screen from tracks
-                //room!.localParticipant.tracks.forEach(publication => {
+
                 room!.localParticipant.videoTracks.forEach(publication => {
                   if (publication.track.name === 'screen') {
                     room!.localParticipant.unpublishTrack(publication.track);
-                    publication.track.stop();
                     room!.localParticipant.emit('trackUnpublished', publication);
+                    publication.track.stop();
                   }
                 });
+
                 room!.localParticipant.publishTrack(mictrack);
 
-                //room!.localParticipant.unpublishTrack(track);
-                //room!.localParticipant.emit('trackUnpublished', trackPublication);
-                //track.stop();
                 setIsSharing(false);
+                console.log('stopped sharing - ' + isSharing);
               };
               track.onended = stopScreenShareRef.current;
               setIsSharing(true);
+
+              //console.log(isSharing)
             })
             .catch(onError);
-          //}
         });
       })
       .catch(error => {
@@ -164,29 +173,4 @@ function mixAudioTracksTogether(stream1: MediaStreamTrack, stream2: MediaStreamT
   var FinalStream = dest.stream;
 
   return FinalStream;
-}
-
-function getUserMicrophone(room: Room) {
-  // get avaliable input device with id = "default" and kind = "audioinput" and add it to the stream and add it to the room
-  // for loop though only once so we dont add multiple audio tracks
-
-  var userMic: any;
-
-  navigator.mediaDevices.enumerateDevices().then(devices => {
-    devices.forEach(device => {
-      if (device.kind === 'audioinput' && device.deviceId === 'default') {
-        debugger;
-        navigator.mediaDevices
-          .getUserMedia({
-            audio: {
-              deviceId: device.deviceId,
-            },
-          })
-          .then(stream => {
-            userMic = stream.getAudioTracks()[0];
-            room!.localParticipant.publishTrack(userMic);
-          });
-      }
-    });
-  });
 }
