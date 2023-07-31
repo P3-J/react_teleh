@@ -60,6 +60,13 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
             hasMic = true;
             if (screenShareTrackBool) {
               room!.localParticipant.unpublishTrack(element.track);
+              room!.localParticipant.emit('trackUnpublished', element);
+              stream.getAudioTracks().forEach(track => {
+                // if track audio then stop it
+                if (track.kind === 'audio') {
+                  track.stop();
+                }
+              });
             }
           }
         });
@@ -95,18 +102,19 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
               // if the user stops sharing unpublish all audio tracks and publish the mic track again
               //stream = oldStreamWithMic;
               // bad fix but it works, idk why
-              stopScreenShareRef.current = () => {
-                room!.localParticipant.unpublishTrack(trackPublication.track);
-              };
+              console.log('starting with ', room!.localParticipant.tracks);
 
               stopScreenShareRef.current = () => {
-                //console.log("-----" + isSharing)
+                // remove all local participant audio tracks
+                // need to unpublish all tracks then home free. Do same as stop sharing button in navigator.mediadevices
+                // something releated to the fact that audio is not unpublished
 
                 room!.localParticipant.audioTracks.forEach(publication => {
-                  if (screenShareAudioTrack) {
+                  if (screenShareTrackBool) {
                     room!.localParticipant.unpublishTrack(publication.track);
                     room!.localParticipant.emit('trackUnpublished', publication);
                     publication.track.stop();
+                    room!.localParticipant.unpublishTrack(publication.track);
                   }
                 });
 
@@ -121,7 +129,6 @@ export default function useScreenShareToggle(room: Room | null, onError: ErrorCa
                 room!.localParticipant.publishTrack(mictrack);
 
                 setIsSharing(false);
-                console.log('stopped sharing - ' + isSharing);
               };
               track.onended = stopScreenShareRef.current;
               setIsSharing(true);
